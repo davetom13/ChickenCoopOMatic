@@ -11,8 +11,8 @@ const int bottomSwitchPin = 2;
 const int lightPin = 4;
 
 const int stepsPerRotation = 200; //5373;
-const int openLevel = 400;
-const int closeLevel = 300;
+const int openLevel = 700;
+const int closeLevel = 550;
 
 Adafruit_MotorShield afms = Adafruit_MotorShield(); 
 Adafruit_StepperMotor* motor = afms.getStepper(stepsPerRotation, 2);

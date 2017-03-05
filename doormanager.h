@@ -7,7 +7,7 @@
 #include "display.h"
 #include "utils.h"
 
-enum State { None, Open, Closing, Closed, Opening, Invalid };
+enum State { None, Open, Closing, Closed, Opening, RunOnOpen, RunOnClosed, Invalid };
 
 enum CompOperator {
   GreaterThan = 0, 
@@ -16,6 +16,7 @@ enum CompOperator {
 };
 
 const char CompOperatorSymbols[CompOperator::Count] = {'>', '<'};
+const int RUNON_TIME = 500;
 
 String doorStateToString(State doorState) {
   switch(doorState) {
@@ -33,6 +34,12 @@ String doorStateToString(State doorState) {
       break;
     case Opening:
       return "Opening";
+      break;
+    case RunOnOpen:
+      return "Running on";
+      break;
+    case RunOnClosed:
+      return "Running on";
       break;
     default:
       return "Invalid";
@@ -233,8 +240,8 @@ class MovingState : public DoorState {
       State thisState,
       LatchingSwitch* toSwitch, 
       int direction, 
-      DoorManager* doorManager) :
-      DoorState(thisState, doorManager) {
+      DoorManager* doorManager
+    ) : DoorState(thisState, doorManager) {
       _toSwitch = toSwitch;
       _direction = direction;
       doorManager->displayStatus("Moving " + directionToString(direction));
@@ -242,6 +249,35 @@ class MovingState : public DoorState {
     }
 
     virtual State work();
+};
+
+class RunOnState : public DoorState {
+  private:
+    unsigned long _endTime;
+    int _direction;
+    State _nextState;
+  public:
+    RunOnState(
+      State thisState,
+      State nextState,
+      int direction,
+      unsigned long time,
+      DoorManager* doorManager
+    ) : DoorState (thisState, doorManager) {
+      _endTime = millis() + time;
+      _direction = direction;
+      _nextState = nextState;
+    }
+   
+    virtual State work() {
+      if ((int)millis() - _endTime >= 0) {
+        return _nextState;
+      } 
+      else {
+        _doorManager->move(_direction);
+      }
+      return None;
+    }
 };
 
 State MovingState::work() {
@@ -255,14 +291,13 @@ State MovingState::work() {
     Serial.println("DOWN == " + String(DOWN, DEC) + " UP == " + String(UP, DEC));
     switch (_direction) {
       case DOWN: 
-        nextState = State::Closed;
+        nextState = State::RunOnClosed;
         break;
       case UP:
-        nextState = State::Open;
+        nextState = State::RunOnOpen;
         break;
       default:
         nextState = State::None;
-        break;
     }
     Serial.println("Returning new state: " + doorStateToString(nextState));
     return nextState;
@@ -317,6 +352,14 @@ DoorState* DoorManager::createState(State newState) {
       println("Switch to open");
       return new StaticState(newState, _lightSensor, LessThan, _closeLightLevel, DOWN, 1000, this);
       break;
+    case RunOnOpen:
+      println("Running on");
+      return new RunOnState(newState, State::Open, DOWN, RUNON_TIME, this);
+      break; 
+    case RunOnClosed:
+      println("Running on");
+      return new RunOnState(newState, State::Closed, DOWN, RUNON_TIME, this);
+      break; 
     default:
       println("Switch to Null");   
       return new NullState(newState, this);

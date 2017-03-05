@@ -29,33 +29,41 @@ class LatchingSwitch {
     void reset(int state) {
       _latched = false;
       _state = state;
-      _lastRead = _state;
+      _lastRead = -1;
       Serial.println("Switch " + _name + " reset to " + stateToString(_state));
     }
 
     int state() {
+      /*if (!_latched) {
+        int newState = digitalRead(_pin);
+        if (newState != _state) {
+          _latched = true;
+          Serial.println(_name + " latched " + stateToString(newState));
+        }
+        _state = newState;
+      }*/
+      
       if (!_latched) {
         int now = millis();
         int newState = digitalRead(_pin);
-  
-        if (newState == _lastRead) {
-          if (now - _lastTime > DEBOUNCE_TIME) {
-            if (newState != _state) {
-              Serial.println("Switch " + _name + " has gone from " + stateToString(_state) + " to " + stateToString(newState));
+        if (newState != _state) {
+          if (newState == _lastRead) {
+            if ((int)now - _lastTime >= 0) {
+              if (newState != _state) {
+                _latched = true;
+                Serial.println("Switch " + _name + " has gone from " + stateToString(_state) + " to " + stateToString(newState));
+                Serial.println(_name + " latched " + stateToString(newState));
+              }
+              _state = newState;
             }
-            if (newState != _state) {
-              _latched = true;
-              Serial.println(_name + " latched " + stateToString(newState));
+            else {
+              Serial.println("DEBOUNCE! Time: " + String(now - _lastRead));
             }
-            _state = newState;
           }
           else {
-            Serial.println("DEBOUNCE!");
+            _lastTime = now + DEBOUNCE_TIME;
+            _lastRead = newState;
           }
-        }
-        else {
-          _lastTime = now;
-          _lastRead = newState;
         }
       }
       return _state;
